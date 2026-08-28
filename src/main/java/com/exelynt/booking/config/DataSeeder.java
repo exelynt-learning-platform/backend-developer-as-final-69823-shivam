@@ -15,22 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 
-/**
- * Seeds the accounts and resources needed to exercise the API.
- *
- * <p>Implemented as a {@link CommandLineRunner} rather than {@code data.sql} for two reasons:
- * passwords are hashed at runtime by the configured {@link PasswordEncoder} instead of being
- * committed as pre-computed hashes, and it sidesteps the ordering problem where {@code data.sql}
- * runs before Hibernate has finished creating the schema under {@code ddl-auto=update}.
- *
- * <p>Idempotent: it inspects each table and only inserts when empty, so restarts do not
- * duplicate rows.
- */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class DataSeeder implements CommandLineRunner {
-
     private final UserRepository userRepository;
     private final ResourceRepository resourceRepository;
     private final PasswordEncoder passwordEncoder;

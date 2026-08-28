@@ -8,12 +8,6 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * A booking of a {@link Resource} by a {@link User} over a time window.
- *
- * <p>The owning user is always derived from the authenticated principal when a reservation is
- * created — never from client input — so a caller cannot book on someone else's behalf.
- */
 @Entity
 @Table(
         name = "reservations",
@@ -30,19 +24,16 @@ import java.time.LocalDateTime;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString(onlyExplicitlyIncluded = true)
 public class Reservation {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @EqualsAndHashCode.Include
     @ToString.Include
     private Long id;
 
-    /** Owning side of User 1..* Reservation. Lazy to keep it out of unrelated queries. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false, foreignKey = @ForeignKey(name = "fk_reservation_user"))
     private User user;
 
-    /** Owning side of Resource 1..* Reservation. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "resource_id", nullable = false, foreignKey = @ForeignKey(name = "fk_reservation_resource"))
     private Resource resource;
@@ -60,7 +51,6 @@ public class Reservation {
     @ToString.Include
     private ReservationStatus status;
 
-    /** Total price for this booking. NUMERIC(10,2). */
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 
