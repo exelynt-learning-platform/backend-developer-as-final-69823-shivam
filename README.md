@@ -17,10 +17,18 @@ their own reservations; administrators manage everything.
 
 ## Prerequisites
 
-- JDK 21+
-- Docker (for PostgreSQL). Any PostgreSQL 14+ works if you'd rather run your own.
+- **JDK 21+** — required.
+- **A PostgreSQL database** — either via Docker (Option A) or an existing local install (Option B).
+- Maven is *not* required; the project ships with the Maven wrapper (`./mvnw`).
 
-## Quick start
+Pick whichever database option suits your machine. Both produce an identical running application.
+
+---
+
+## Option A — Run with Docker (recommended)
+
+Nothing to install beyond Docker. The compose file provisions PostgreSQL 17 with the right database,
+user, and password already configured.
 
 **1. Start the database**
 
@@ -28,9 +36,21 @@ their own reservations; administrators manage everything.
 docker compose up -d
 ```
 
-This starts PostgreSQL 17 on **host port 5434**, not the default 5432. The container maps `5434:5432` so it
-will not collide with a PostgreSQL server you may already have installed locally. If 5434 is taken on your
-machine, change the host side of the mapping in `docker-compose.yml` and set `DB_URL` to match.
+Docker Desktop must be running first, or this fails with `failed to connect to the docker API`.
+
+The container publishes PostgreSQL on **host port 5434**, not the usual 5432. This is deliberate: if you
+already have PostgreSQL installed locally it will own 5432, and the two would silently conflict — the
+application would connect to your local server instead of the container and fail with
+`password authentication failed for user "booking"`, which looks like a credentials problem but is really
+"wrong server". Using 5434 avoids that entirely.
+
+Confirm it is ready:
+
+```bash
+docker compose ps
+```
+
+Wait for the status to read `healthy`.
 
 **2. Run the application**
 
@@ -38,11 +58,94 @@ machine, change the host side of the mapping in `docker-compose.yml` and set `DB
 ./mvnw spring-boot:run
 ```
 
-The API starts on `http://localhost:8080`. On first start the schema is created and seed data is inserted.
+No configuration needed — the defaults in `application.properties` already point at port 5434.
 
-**3. Open the API docs**
+---
+
+## Option B — Run without Docker (existing PostgreSQL)
+
+Use this if you already have PostgreSQL installed, or cannot run Docker. Requires PostgreSQL 14 or newer.
+
+**1. Create the database and user**
+
+Run these two commands as a PostgreSQL superuser (you will be prompted for the `postgres` password you
+chose during installation):
+
+```bash
+psql -U postgres -c "CREATE USER booking WITH PASSWORD 'booking';"
+```
+
+```bash
+psql -U postgres -c "CREATE DATABASE bookingdb OWNER booking;"
+```
+
+If `psql` is not on your PATH, it lives in the installer's `bin` folder — on Windows typically
+`C:\Program Files\PostgreSQL\<version>\bin`. You can also run the equivalent SQL from pgAdmin:
+
+```sql
+CREATE USER booking WITH PASSWORD 'booking';
+CREATE DATABASE bookingdb OWNER booking;
+```
+
+Making `booking` the *owner* matters on PostgreSQL 15 and later, where a non-owner cannot create tables in
+the `public` schema by default. Owning the database sidesteps that; otherwise you would also need
+`GRANT ALL ON SCHEMA public TO booking;` while connected to `bookingdb`.
+
+Verify the database is reachable before moving on:
+
+```bash
+psql -U booking -d bookingdb -h localhost -c "SELECT version();"
+```
+
+**2. Point the application at your server**
+
+A local install normally listens on **5432**, so override `DB_URL`. Set the variables for your shell:
+
+*PowerShell*
+
+```powershell
+$env:DB_URL = "jdbc:postgresql://localhost:5432/bookingdb"
+$env:DB_USER = "booking"
+$env:DB_PASS = "booking"
+```
+
+*bash / zsh*
+
+```bash
+export DB_URL=jdbc:postgresql://localhost:5432/bookingdb
+export DB_USER=booking
+export DB_PASS=booking
+```
+
+Adjust the port if your server runs elsewhere. Alternatively copy `.env.example` to `.env` and edit it.
+
+**3. Run the application**
+
+```bash
+./mvnw spring-boot:run
+```
+
+The schema is created automatically on first start, and seed data is inserted.
+
+---
+
+## After starting, either way
+
+The API is available at `http://localhost:8080`, with interactive docs at:
 
 <http://localhost:8080/swagger-ui.html>
+
+On first start the schema is created and the seed users and resources are inserted. Restarting will not
+duplicate them.
+
+### Running the tests needs neither option
+
+```bash
+./mvnw test
+```
+
+The test suite runs against an in-memory H2 database, so it requires no Docker, no PostgreSQL, and no
+configuration at all.
 
 ## Configuration
 
