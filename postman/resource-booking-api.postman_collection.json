@@ -1,0 +1,380 @@
+{
+  "info": {
+    "name": "Resource Booking API",
+    "description": "Resource Booking System - JWT authentication with ADMIN and USER role-based access control.\n\nRun 'Login as ADMIN' or 'Login as USER' first; the returned token is saved automatically into the {{token}} collection variable and used by every other request.\n\nSeed accounts: admin/Admin@123 (ADMIN), alice/User@123 and bob/User@123 (USER).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "token", "value": "" },
+    { "key": "resourceId", "value": "1" },
+    { "key": "reservationId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login as ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token', body.token);",
+                  "pm.test('role is ADMIN', () => pm.expect(body.role).to.eql('ADMIN'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Admin@123\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Login as USER (alice)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token', body.token);",
+                  "pm.test('role is USER', () => pm.expect(body.role).to.eql('USER'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"alice\",\n  \"password\": \"User@123\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Login with wrong password (expect 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('standard error shape', () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b).to.have.all.keys('timestamp','status','error','message','path');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"WrongPassword\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Resources",
+      "item": [
+        {
+          "name": "List resources",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/resources", "host": ["{{baseUrl}}"], "path": ["api", "resources"] }
+          }
+        },
+        {
+          "name": "Get resource by id",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/resources/{{resourceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "resources", "{{resourceId}}"]
+            }
+          }
+        },
+        {
+          "name": "Create resource (ADMIN only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('resourceId', pm.response.json().id);",
+                  "}",
+                  "pm.test('201 for ADMIN, 403 for USER', () => pm.expect([201,403]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Meeting Room C\",\n  \"type\": \"ROOM\",\n  \"description\": \"Seats 8\",\n  \"available\": true,\n  \"pricePerUnit\": \"120.00\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/resources", "host": ["{{baseUrl}}"], "path": ["api", "resources"] }
+          }
+        },
+        {
+          "name": "Update resource (ADMIN only)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Meeting Room C - Renamed\",\n  \"type\": \"ROOM\",\n  \"description\": \"Seats 8, now with a projector\",\n  \"available\": true,\n  \"pricePerUnit\": \"135.00\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/resources/{{resourceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "resources", "{{resourceId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete resource (ADMIN only)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/resources/{{resourceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "resources", "{{resourceId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reservations",
+      "item": [
+        {
+          "name": "Create reservation",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const start = new Date(Date.now() + 7 * 24 * 3600 * 1000);",
+                  "start.setHours(9, 0, 0, 0);",
+                  "const end = new Date(start.getTime() + 2 * 3600 * 1000);",
+                  "const fmt = d => d.toISOString().slice(0, 19);",
+                  "pm.collectionVariables.set('startTime', fmt(start));",
+                  "pm.collectionVariables.set('endTime', fmt(end));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const b = pm.response.json();",
+                  "  pm.collectionVariables.set('reservationId', b.id);",
+                  "  pm.test('owner comes from the token, not the body', () => pm.expect(b.username).to.be.a('string'));",
+                  "  pm.test('new reservations start PENDING', () => pm.expect(b.status).to.eql('PENDING'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": 1,\n  \"startTime\": \"{{startTime}}\",\n  \"endTime\": \"{{endTime}}\",\n  \"price\": \"150.00\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/reservations", "host": ["{{baseUrl}}"], "path": ["api", "reservations"] }
+          }
+        },
+        {
+          "name": "List reservations",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations?page=0&size=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reservations"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List with filters, paging, and sorting",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations?status=PENDING&minPrice=100&maxPrice=500&page=0&size=5&sort=startTime,desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reservations"],
+              "query": [
+                { "key": "status", "value": "PENDING" },
+                { "key": "minPrice", "value": "100" },
+                { "key": "maxPrice", "value": "500" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "5" },
+                { "key": "sort", "value": "startTime,desc" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get reservation by id",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations/{{reservationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reservations", "{{reservationId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update reservation",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": 1,\n  \"startTime\": \"{{startTime}}\",\n  \"endTime\": \"{{endTime}}\",\n  \"price\": \"175.00\",\n  \"status\": \"CONFIRMED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations/{{reservationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reservations", "{{reservationId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete reservation",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations/{{reservationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reservations", "{{reservationId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Security checks",
+      "item": [
+        {
+          "name": "No token (expect 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 401', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/resources", "host": ["{{baseUrl}}"], "path": ["api", "resources"] }
+          }
+        },
+        {
+          "name": "USER writing a resource (expect 403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('USER is forbidden from writing resources', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Should Be Rejected\",\n  \"type\": \"ROOM\",\n  \"pricePerUnit\": \"10.00\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/resources", "host": ["{{baseUrl}}"], "path": ["api", "resources"] },
+            "description": "Log in as alice first. A USER must not be able to create resources."
+          }
+        },
+        {
+          "name": "Forging the owner in the body (identity must come from the JWT)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const start = new Date(Date.now() + 30 * 24 * 3600 * 1000);",
+                  "start.setHours(14, 0, 0, 0);",
+                  "const end = new Date(start.getTime() + 2 * 3600 * 1000);",
+                  "const fmt = d => d.toISOString().slice(0, 19);",
+                  "pm.collectionVariables.set('forgeStart', fmt(start));",
+                  "pm.collectionVariables.set('forgeEnd', fmt(end));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const b = pm.response.json();",
+                  "  pm.test('body userId was ignored', () => pm.expect(b.userId).to.not.eql(999));",
+                  "  pm.test('body status was ignored', () => pm.expect(b.status).to.eql('PENDING'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": 2,\n  \"startTime\": \"{{forgeStart}}\",\n  \"endTime\": \"{{forgeEnd}}\",\n  \"price\": \"80.00\",\n  \"userId\": 999,\n  \"username\": \"admin\",\n  \"status\": \"CONFIRMED\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/reservations", "host": ["{{baseUrl}}"], "path": ["api", "reservations"] },
+            "description": "Sends another user's id and a CONFIRMED status. Both must be ignored: the reservation belongs to the token holder and starts PENDING."
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -5,6 +5,11 @@ import com.exelynt.booking.dto.response.PageResponse;
 import com.exelynt.booking.dto.response.ReservationResponse;
 import com.exelynt.booking.enums.ReservationStatus;
 import com.exelynt.booking.service.ReservationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -27,11 +32,21 @@ import java.math.BigDecimal;
 @RestController
 @RequestMapping("/api/reservations")
 @RequiredArgsConstructor
+@Tag(name = "Reservations",
+        description = "Bookings for resources. A USER sees and manages only their own; an ADMIN sees and manages all.")
 public class ReservationController {
 
     private final ReservationService reservationService;
 
     @PostMapping
+    @Operation(summary = "Create a reservation",
+            description = "The owner is taken from the JWT, never from the request body. New reservations always start as PENDING.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Created"),
+            @ApiResponse(responseCode = "400", description = "Validation failed"),
+            @ApiResponse(responseCode = "404", description = "Resource does not exist"),
+            @ApiResponse(responseCode = "409", description = "Resource unavailable or the time slot overlaps an existing booking")
+    })
     public ResponseEntity<ReservationResponse> create(@Valid @RequestBody ReservationRequest request,
                                                       Authentication authentication,
                                                       UriComponentsBuilder uriBuilder) {
@@ -43,10 +58,17 @@ public class ReservationController {
     }
 
     @GetMapping
+    @Operation(summary = "List reservations with filtering, pagination, and sorting",
+            description = "A USER sees only their own reservations; an ADMIN sees every user's. "
+                    + "Sortable fields: createdAt, endTime, id, price, startTime, status.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "A page of reservations"),
+            @ApiResponse(responseCode = "400", description = "Unknown status value or unsupported sort field")
+    })
     public ResponseEntity<PageResponse<ReservationResponse>> findAll(
-            @RequestParam(required = false) ReservationStatus status,
-            @RequestParam(required = false) BigDecimal minPrice,
-            @RequestParam(required = false) BigDecimal maxPrice,
+            @Parameter(description = "Filter by status") @RequestParam(required = false) ReservationStatus status,
+            @Parameter(description = "Minimum price, inclusive") @RequestParam(required = false) BigDecimal minPrice,
+            @Parameter(description = "Maximum price, inclusive") @RequestParam(required = false) BigDecimal maxPrice,
             @PageableDefault(size = 10, sort = "startTime") Pageable pageable,
             Authentication authentication) {
         return ResponseEntity.ok(reservationService.findAll(
@@ -54,12 +76,29 @@ public class ReservationController {
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get one reservation by id",
+            description = "A USER may only read their own reservation; an ADMIN may read any.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Found"),
+            @ApiResponse(responseCode = "403", description = "The reservation belongs to another user"),
+            @ApiResponse(responseCode = "404", description = "No reservation with that id")
+    })
     public ResponseEntity<ReservationResponse> findById(@PathVariable Long id,
                                                         Authentication authentication) {
         return ResponseEntity.ok(reservationService.findById(id, authentication.getName()));
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update a reservation",
+            description = "The owner may edit their own reservation only while it is PENDING. "
+                    + "An ADMIN may edit any reservation and is the only role that can change status.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Updated"),
+            @ApiResponse(responseCode = "400", description = "Validation failed"),
+            @ApiResponse(responseCode = "403", description = "The reservation belongs to another user"),
+            @ApiResponse(responseCode = "404", description = "No reservation with that id"),
+            @ApiResponse(responseCode = "409", description = "Not PENDING, resource unavailable, or the new slot overlaps")
+    })
     public ResponseEntity<ReservationResponse> update(@PathVariable Long id,
                                                       @Valid @RequestBody ReservationRequest request,
                                                       Authentication authentication) {
@@ -67,6 +106,13 @@ public class ReservationController {
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Delete a reservation",
+            description = "The owner may delete their own reservation; an ADMIN may delete any.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Deleted"),
+            @ApiResponse(responseCode = "403", description = "The reservation belongs to another user"),
+            @ApiResponse(responseCode = "404", description = "No reservation with that id")
+    })
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication authentication) {
         reservationService.delete(id, authentication.getName());
         return ResponseEntity.noContent().build();
